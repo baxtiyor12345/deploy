@@ -6,3 +6,4 @@ from .homework_serializer import *
 from .attendance_serializer import *
 from .detail_teacher import *
 from .payments_serializer import *
+from .statistic_serializer import *

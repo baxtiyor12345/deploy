@@ -5,3 +5,4 @@ from .homework_model import *
 from .attendance_model import *
 from .payments_model import *
 from .studend_model import *
+from .studet_statistic_model import *

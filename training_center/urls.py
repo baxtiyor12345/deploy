@@ -8,6 +8,7 @@ from .views.homework_view import HomeworkListCreateApi, HomeworkSubmissionCreate
 from .views.payments_view import PaymentsApi, PaymentsPutPatchApi
 from .views.staff_view import StatisticsAPIView, DepartamentApi
 from .views.table_view import TableApi, RoomApi, TableTypeApi
+from .views.student_statistic_view import StudentsStatisticsView
 
 router = DefaultRouter()
 
@@ -16,6 +17,7 @@ urlpatterns = [
     path('student/', StudentApi.as_view(), name='students'),
     path('student/<int:pk>/', StudentPutPatchApi.as_view(), name='students'),
     path('student/status/', StudentStatusByDateAPIView.as_view(), name='student-status'),
+    path('student/statistic/', StudentsStatisticsView.as_view(), name='student-statistic'),
 
     # Teacher API
     path('teacher/', TeacherApi.as_view(), name='teacher'),

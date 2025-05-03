@@ -7,3 +7,4 @@ from .table_view import *
 from .homework_view import *
 from .attendance_view import *
 from .payments_view import *
+from .student_statistic_view import *
