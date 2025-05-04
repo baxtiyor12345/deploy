@@ -19,7 +19,7 @@ class IsAdminOrTeacherLimitedEdit(BasePermission):
             return True
 
         # Teacher: faqat PATCH va faqat 'title' ni o‘zgartirsa bo‘ladi
-        if user.is_teacher and request.method in ['PATCH', 'PUT']:
+        if user.is_teacher and request.method in ['PATCH', 'PUT', 'GET']:
             allowed_fields = {'title'}
             incoming_fields = set(request.data.keys())
             return incoming_fields.issubset(allowed_fields)
@@ -43,3 +43,9 @@ class IsStaffOrReadOnly(BasePermission):
 class IsTeacher(BasePermission):
     def has_permission(self, request, view):
         return hasattr(request.user, 'user')  # ya'ni Teacher borligini tekshiradi
+
+
+# Staff bo‘lsa, CRUD qilish huquqini beramiz.
+class IsStaffUser(BasePermission):
+        def has_permission(self, request, view):
+            return bool(request.user and request.user.is_authenticated and request.user.is_staff)

@@ -29,7 +29,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('training_center.urls')),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('swagger.<format>/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),

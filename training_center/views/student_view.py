@@ -1,188 +1,175 @@
-from datetime import datetime
 from django.contrib.auth.hashers import make_password
-from rest_framework import status, viewsets
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+from drf_yasg.utils import swagger_auto_schema
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from drf_yasg.utils import swagger_auto_schema
-from ..add_pagination import CustomPaginator
-from ..models import Student, User, GroupStudent
-from django.shortcuts import get_object_or_404
 from drf_yasg import openapi
-from ..permissions import IsStaffOrReadOnly
-from ..serializer import StudentSerializer, StudentUserSerializer, StudentPostSerializer
+from ..permissions import *
+from ..models import Student
+from ..serializer.student_serializer import *
+from ..add_pagination import CustomPaginator
 
+
+#  HAMMASI ISHLAYAPDI
 
 class StudentApi(APIView):
-    permission_classes = [IsStaffOrReadOnly]  # staff check
+    permission_classes = (IsAuthenticated, IsStaffUser)
 
-    @swagger_auto_schema(request_body=StudentPostSerializer)
-    def post(self, request):
-        data = {"success": True}
-        user_data = request.data['user']
-        student_data = request.data['student']
-
-        user_serializer = StudentUserSerializer(data=user_data)
-        user_serializer.is_valid(raise_exception=True)
-
-        validated_user = user_serializer.validated_data
-        validated_user['password'] = make_password(validated_user['password'])
-        validated_user['is_student'] = True
-        validated_user['is_active'] = True
-
-        user = User.objects.create(**validated_user)
-
-        student_serializer = StudentSerializer(data=student_data)
-        student_serializer.is_valid(raise_exception=True)
-
-        student = student_serializer.save(user=user)
-
-        if 'departments' in student_data:
-            student.departments.set(student_data['departments'])
-        if 'course' in student_data:
-            student.course.set(student_data['course'])
-
-        data['user'] = StudentUserSerializer(user).data
-        data['student'] = StudentSerializer(student).data
-        return Response(data)
+    # Studentlarni olish (GET)
     @swagger_auto_schema(
-        manual_parameters=[
-            openapi.Parameter('page', openapi.IN_QUERY, description="Qaysi sahifa", type=openapi.TYPE_INTEGER),
-            openapi.Parameter('page_size', openapi.IN_QUERY, description="Har sahifadagi elementlar soni",
-                              type=openapi.TYPE_INTEGER),
-        ]
+        responses={200: StudentPostSerializer(many=True)},
+        description="Studentlar ro'yxatini olish"
     )
     def get(self, request):
         students = Student.objects.all().order_by('-id')
         paginator = CustomPaginator()
-
-        # Query paramdan page_size olish
-        page_size = request.query_params.get('page_size')
-        if page_size and page_size.isdigit():
-            paginator.page_size = int(page_size)
-        else:
-            paginator.page_size = 2  # default
-
+        paginator.page_size = 2
         result_page = paginator.paginate_queryset(students, request)
-        serializer = StudentSerializer(result_page, many=True)
+        serializer = StudentPostSerializer(result_page, many=True)
         return paginator.get_paginated_response(serializer.data)
 
+    # Yangi student yaratish (POST)
+    @swagger_auto_schema(
+        request_body=StudentPostSerializer,
+        description="Yangi student yaratish"
+    )
+    def post(self, request):
+        data = request.data.copy()  # dict nusxasini olamiz
+        group = data.get('group', '')
+        if isinstance(group, str):
+            data['group'] = list(map(int, group.split(',')))
+        serializer = StudentPostSerializer(data=data)
+        if serializer.is_valid():
+            student = serializer.save()
+            return Response(data=StudentPostSerializer(student).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class StudentPutPatchApi(APIView):
-    permission_classes = [IsStaffOrReadOnly]  # Har doim auth + staff check
+    # Studentni yangilash (PUT)
+    @swagger_auto_schema(
+        request_body=StudentPostSerializer,
+        manual_parameters=[
+            openapi.Parameter(
+                'id',
+                openapi.IN_QUERY,
+                description="O'zgartiriladigan student IDsi",
+                type=openapi.TYPE_INTEGER,
+                required=True
+            )
+        ],
+        responses={
+            204: "Muvaffaqiyatli yangilandi",
+            404: "Student topilmadi",
+            500: "Server xatosi"
+        },
+        description="Studentni yangilash"
+    )
+    def put(self, request):
+        data = request.data.copy()  # dict nusxasini olamiz
+        group = data.get('group', '')
+        if isinstance(group, str):
+            data['group'] = list(map(int, group.split(',')))
 
-    @swagger_auto_schema(request_body=StudentPostSerializer)
-    def put(self, request, pk):
-        student = get_object_or_404(Student, pk=pk)
+        student_id = request.query_params.get('id')
+        if not student_id:
+            return Response({'detail': "ID ko'rsatilmagan."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Foydalanuvchini yangilash
-        user_data = request.data.get('user', {})
-        user_serializer = StudentUserSerializer(student.user, data=user_data)
-        if user_serializer.is_valid():
-            # Parolni xash qilish
-            if 'password' in user_serializer.validated_data:
-                user_serializer.validated_data['password'] = make_password(user_serializer.validated_data['password'])
-            user_serializer.save()
-        else:
-            return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        student = get_object_or_404(Student, pk=student_id)
+        serializer = StudentPostSerializer(student, data=data)  # <-- to'g'riladik: data yuboriladi
 
-        # Talabani yangilash
-        student_data = request.data.get('student', {})
-        student_serializer = StudentSerializer(student, data=student_data)
-        if student_serializer.is_valid():
-            student = student_serializer.save()
+        if serializer.is_valid():
+            student = serializer.save()
+            return Response(StudentPostSerializer(student).data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            # ManyToMany maydonlarni yangilash
-            group_ids = student_data.get('group', [])
-            student.group.set(group_ids)
+    # Studentni qisman yangilash (PATCH)
+    @swagger_auto_schema(
+        request_body=StudentUpdateSerializer,
+        responses={
+            200: "Muvaffaqiyatli qisman yangilandi",
+            400: "Noto‘g‘ri ma’lumot",
+            404: "Student topilmadi",
+            500: "Server xatosi"
+        },
+        description="Studentni qisman yangilash"
+    )
+    def patch(self, request):
+        data = request.data.copy()  # dict nusxasini olamiz
+        group = data.get('group', '')
+        if isinstance(group, str):
+            data['group'] = list(map(int, group.split(',')))
 
-            return Response(student_serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response(student_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        student_id = data.get('id')
+        if not student_id:
+            return Response({'detail': "ID ko‘rsatilmagan."}, status=status.HTTP_400_BAD_REQUEST)
 
-    @swagger_auto_schema(request_body=StudentPostSerializer)
-    def patch(self, request, pk):
-        student = get_object_or_404(Student, pk=pk)
+        try:
+            student_id = int(student_id)
+        except ValueError:
+            return Response({'detail': "ID noto‘g‘ri formatda."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Foydalanuvchini qisman yangilash
-        user_data = request.data.get('user', {})
-        if user_data:
-            user_serializer = StudentUserSerializer(student.user, data=user_data, partial=True)
-            if user_serializer.is_valid():
-                if 'password' in user_serializer.validated_data:
-                    user_serializer.validated_data['password'] = make_password(
-                        user_serializer.validated_data['password'])
-                user_serializer.save()
-            else:
-                return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        student = get_object_or_404(Student, id=student_id)
+        serializer = StudentUpdateSerializer(student, data=data, partial=True)  # <-- data ni yuborayapmiz
 
-        # Talabani qisman yangilash
-        student_data = request.data.get('student', {})
-        student_serializer = StudentSerializer(student, data=student_data, partial=True)
-        if student_serializer.is_valid():
-            student = student_serializer.save()
+        if serializer.is_valid():
+            student = serializer.save()
+            return Response(StudentPostSerializer(student).data, status=status.HTTP_200_OK)
 
-            # ManyToMany maydonlarini yangilash
-            group_ids = student_data.get('group', [])
-            if group_ids:
-                student.group.set(group_ids)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response(student_serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response(student_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk):
-        student = get_object_or_404(Student, pk=pk)
-        student.user.delete()  # Agar user ham o‘chirilishi kerak bo‘lsa
-        student.delete()
-        return Response({"detail": "Deleted"}, status=status.HTTP_204_NO_CONTENT)
-
-
-class StudentStatusByDateAPIView(APIView):
-
+    # Studentni o'chirish (DELETE)
     @swagger_auto_schema(
         manual_parameters=[
             openapi.Parameter(
-                'start_date', openapi.IN_QUERY, description="Boshlanish sanasi (YYYY-MM-DD)", type=openapi.TYPE_STRING, required=True
-            ),
-            openapi.Parameter(
-                'end_date', openapi.IN_QUERY, description="Tugash sanasi (YYYY-MM-DD)", type=openapi.TYPE_STRING, required=True
+                'id',
+                openapi.IN_QUERY,
+                description="O'chiriladigan student IDsi",
+                type=openapi.TYPE_INTEGER,
+                required=True
             )
-        ]
+        ],
+        responses={
+            204: "Muvaffaqiyatli o'chirildi",
+            404: "Student topilmadi",
+            500: "Server xatosi"
+        },
+        description="Studentni o'chirish"
     )
-    def get(self, request):
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
-
-        if not start_date or not end_date:
-            return Response({'error': 'start_date va end_date kiritilishi shart!'}, status=status.HTTP_400_BAD_REQUEST)
+    def delete(self, request):
+        data = {"success": True}
 
         try:
-            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-        except ValueError:
-            return Response({'error': 'Sana formati noto‘g‘ri. To‘g‘ri format: YYYY-MM-DD'}, status=status.HTTP_400_BAD_REQUEST)
+            # ID ni so'rovdan olish
+            student_id = request.GET.get('id')
+            if not student_id:
+                return Response(
+                    data={"success": False, "xabar": "ID parametri talab qilinadi"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        finished_groups = GroupStudent.objects.filter(finish_date__range=(start_date, end_date))
-        finished_students = Student.objects.filter(group__in=finished_groups).distinct()
+            # Studentni topish
+            student = get_object_or_404(Student, id=student_id)
+            user = student.user  # Bog'langan foydalanuvchi
 
-        active_groups = GroupStudent.objects.filter(finish_date__isnull=True)
-        active_students = Student.objects.filter(group__in=active_groups).distinct()
+            # Transaction ichida o'chirish
+            with transaction.atomic():
+                student.delete()  # Avval studentni o'chiramiz
+                user.delete()  # Keyin foydalanuvchini o'chiramiz
 
-        return Response({
-            'finished_students_count': finished_students.count(),
-            'finished_students': [
-                {
-                    'id': s.id,
-                    'phone_number': s.user.phone_number,
-                    'groups': [g.title for g in s.group.all()]
-                } for s in finished_students
-            ],
-            'active_students_count': active_students.count(),
-            'active_students': [
-                {
-                    'id': s.id,
-                    'phone_number': s.user.phone_number,
-                    'groups': [g.title for g in s.group.all()]
-                } for s in active_students
-            ]
-        })
+            return Response(
+                data={"success": True, "xabar": "Student muvaffaqiyatli o'chirildi"},
+                status=status.HTTP_204_NO_CONTENT
+            )
+
+        except Student.DoesNotExist:
+            return Response(
+                data={"success": False, "xabar": "Student topilmadi"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                data={"success": False, "xabar": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

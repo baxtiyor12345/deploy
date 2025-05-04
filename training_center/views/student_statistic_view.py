@@ -4,9 +4,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from ..serializer import StatisticSerializer
 from ..models.studend_model import Student
+from ..permissions import IsAdminOrTeacherLimitedEdit
 
 
 class StudentsStatisticsView(APIView):
+    permission_classes = [IsAdminOrTeacherLimitedEdit]
     @swagger_auto_schema(request_body=StatisticSerializer)
     def post(self, request):
         serializer = StatisticSerializer(data=request.data)

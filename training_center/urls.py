@@ -15,15 +15,15 @@ router = DefaultRouter()
 urlpatterns = [
     # Student API
     path('student/', StudentApi.as_view(), name='students'),
-    path('student/<int:pk>/', StudentPutPatchApi.as_view(), name='students'),
-    path('student/status/', StudentStatusByDateAPIView.as_view(), name='student-status'),
+    path('student/<int:pk>/', StudentApi.as_view(), name='students'),
+    path('student/status/', StudentApi.as_view(), name='student-status'),
     path('student/statistic/', StudentsStatisticsView.as_view(), name='student-statistic'),
 
     # Teacher API
-    path('teacher/', TeacherApi.as_view(), name='teacher'),
-    path('teacher/<int:pk>/', TeacherPutPatchApi.as_view(), name='teacher'),
+    path('teacher/', Teacher_Api.as_view(), name='teacher'),
+    # path('teacher/<int:pk>/', TeacherPutPatchApi.as_view(), name='teacher'),
     path('users/', RegisterUserApi.as_view(), name='users'),
-    path('teacher/info-group/', TeacherGroupInfoAPIView.as_view(), name='teacher'),
+    # path('teacher/info-group/', TeacherGroupInfoAPIView.as_view(), name='teacher'),
     path('departament/', DepartamentApi.as_view(), name='departament'),
     path('', include(router.urls)),
 
