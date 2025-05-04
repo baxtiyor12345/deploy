@@ -14,7 +14,7 @@ class Payments(models.Model):
         ('cash', 'Cash'),
         ('card', 'Card'),
         ('online', 'Online')
-    ], null=True, blank=True)
+    ], blank=True)
     is_paid = models.BooleanField(default=True)
     note = models.CharField(max_length=255, null=True, blank=True)
 
