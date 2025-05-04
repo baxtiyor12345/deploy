@@ -16,7 +16,7 @@ class Payments(models.Model):
         ('online', 'Online')
     ])
     is_paid = models.BooleanField(default=True)
-    note = models.CharField(null=True, blank=True)
+    note = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         return f"{self.user.phone_number} - {self.amount} so'm"
